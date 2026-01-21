@@ -1,0 +1,283 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hacker Typer Screen</title><style>@font-face{font-family:'Lucida Console';src:url(/fonts/lucida_console.woff) format('woff');font-weight:400;font-style:normal}*{padding:0;margin:0;font-family:'Lucida Console',"Courier New",monospace}body,html{background-color:#000;color:#11c700;overflow:hidden;height:100vh;width:100vw}.hackerScreen{background-color:#000;color:#11c700;text-align:start;font-size:15px;font-weight:400;line-height:1.4;box-sizing:border-box;padding:10px;scrollbar-width:none;-ms-overflow-style:none;overflow:auto;white-space:pre-wrap;user-select:none;height:100vh;width:100vw;cursor:pointer;border:none}.hackerScreen:fullscreen{cursor:none}.hackerScreen::-webkit-scrollbar{display:none}@keyframes blink{from,to{border-color:transparent}50%{border-color:#11c700}}.hackerScreen::after{content:"\200B";display:inline-block;vertical-align:text-bottom;margin-left:5px;border-left:2px solid #11c700;animation:blink 1s step-end infinite;height:1em}#speed-menu{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background-color:#000;border:2px solid #11c700;padding:30px;z-index:1000;color:#11c700;font-size:18px;text-align:center}#speed-menu.show{display:block}.speed-controls{margin-top:20px;display:flex;align-items:center;justify-content:center;gap:20px}.speed-button{background-color:#000;color:#11c700;border:2px solid #11c700;padding:10px 20px;font-size:18px;cursor:pointer;font-family:'Lucida Console',"Courier New",monospace}.speed-button:hover{background-color:#11c700;color:#000}#hacker-screen-speed{padding:5px;width:50px;text-align:center;background-color:#000;color:#11c700;border:2px solid #11c700;font-size:18px;font-family:'Lucida Console',"Courier New",monospace}#speed-menu p{margin-bottom:15px;font-size:14px}</style></head><body><div class="hackerScreen" tabindex="0" id="hackerOutput"></div><div id="speed-menu"><p>SPEED CONTROL</p><p>Press 5 to close</p><div class="speed-controls"><button id="hacker-speed-decrement" class="speed-button">-</button><input id="hacker-screen-speed" type="number" min="1" max="20" value="3" readonly="readonly"><button id="hacker-speed-increment" class="speed-button">+</button></div></div><script>function _sc(e,t){document.cookie=e+"="+(t||"")}function _gc(e){let t=e+"=",_;return decodeURIComponent(document.cookie).split("; ").forEach(e=>{0===e.indexOf(t)&&(_=e.substring(t.length))}),_}let startText="",element=document.querySelector(".hackerScreen"),textToDisplay=`#include <linux/kernel.h>
+#include <kunit/test.h>
+
+#define CREATE_TRACE_POINTS
+
+static int kernel_init(void *);
+
+bool early_boot_irqs_disabled __read_mostly;
+
+enum system_states system_state __read_mostly;
+EXPORT_SYMBOL(system_state);
+
+#define MAX_INIT_ARGS CONFIG_INIT_ENV_ARG_LIMIT
+#define MAX_INIT_ENVS CONFIG_INIT_ENV_ARG_LIMIT
+
+void (*__initdata late_time_init)(void);
+
+char __initdata boot_command_line[COMMAND_LINE_SIZE];
+char *saved_command_line __ro_after_init;
+unsigned int saved_command_line_len __ro_after_init;
+static char *static_command_line;
+static char *extra_command_line;
+static char *extra_init_args;
+
+#ifdef CONFIG_BOOT_CONFIG
+static bool bootconfig_found;
+static size_t initargs_offs;
+#else
+# define bootconfig_found false
+# define initargs_offs 0
+#endif
+
+static char *execute_command;
+static char *ramdisk_execute_command = "/init";
+
+bool static_key_initialized __read_mostly;
+EXPORT_SYMBOL_GPL(static_key_initialized);
+
+unsigned int reset_devices;
+EXPORT_SYMBOL(reset_devices);
+
+static int __init set_reset_devices(char *str)
+{
+	reset_devices = 1;
+	return 1;
+}
+
+__setup("reset_devices", set_reset_devices);
+
+static const char *argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
+const char *envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=linux", NULL, };
+static const char *panic_later, *panic_param;
+
+static bool __init obsolete_checksetup(char *line)
+{
+	const struct obs_kernel_param *p;
+	bool had_early_param = false;
+
+	p = __setup_start;
+	do {
+		int n = strlen(p->str);
+		if (parameqn(line, p->str, n)) {
+			if (p->early) {
+				/* Already done in parse_early_param?
+				 * (Needs exact match on param part).
+				 * Keep iterating, as we can have early
+				 * params and __setups of same names 8( */
+				if (line[n] == '' || line[n] == '=')
+					had_early_param = true;
+			} else if (!p->setup_func) {
+				pr_warn("Parameter %s is obsolete, ignored
+",
+					p->str);
+				return true;
+			} else if (p->setup_func(line + n))
+				return true;
+		}
+		p++;
+	} while (p < __setup_end);
+
+	return had_early_param;
+}
+
+unsigned long loops_per_jiffy = (1<<12);
+EXPORT_SYMBOL(loops_per_jiffy);
+
+static int __init debug_kernel(char *str)
+{
+	console_loglevel = CONSOLE_LOGLEVEL_DEBUG;
+	return 0;
+}
+
+static int __init quiet_kernel(char *str)
+{
+	console_loglevel = CONSOLE_LOGLEVEL_QUIET;
+	return 0;
+}
+
+early_param("debug", debug_kernel);
+early_param("quiet", quiet_kernel);
+
+static int __init loglevel(char *str)
+{
+	int newlevel;
+
+	/*
+	 * Only update loglevel value when a correct setting was passed,
+	 * to prevent blind crashes (when loglevel being set to 0) that
+	 * are quite hard to debug
+	 */
+	if (get_option(&str, &newlevel)) {
+		console_loglevel = newlevel;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+early_param("loglevel", loglevel);
+
+#ifdef CONFIG_BLK_DEV_INITRD
+static void * __init get_boot_config_from_initrd(size_t *_size)
+{
+	u32 size, csum;
+	char *data;
+	u32 *hdr;
+	int i;
+
+	if (!initrd_end)
+		return NULL;
+
+	data = (char *)initrd_end - BOOTCONFIG_MAGIC_LEN;
+	/*
+	 * Since Grub may align the size of initrd to 4, we must
+	 * check the preceding 3 bytes as well.
+	 */
+	for (i = 0; i < 4; i++) {
+		if (!memcmp(data, BOOTCONFIG_MAGIC, BOOTCONFIG_MAGIC_LEN))
+			goto found;
+		data--;
+	}
+	return NULL;
+
+found:
+	hdr = (u32 *)(data - 8);
+	size = le32_to_cpu(hdr[0]);
+	csum = le32_to_cpu(hdr[1]);
+
+	data = ((void *)hdr) - size;
+	if ((unsigned long)data < initrd_start) {
+		pr_err("bootconfig size %d is greater than initrd size %ld
+",
+			size, initrd_end - initrd_start);
+		return NULL;
+	}
+
+	if (xbc_calc_checksum(data, size) != csum) {
+		pr_err("bootconfig checksum failed
+");
+		return NULL;
+	}
+
+	/* Remove bootconfig from initramfs/initrd */
+	initrd_end = (unsigned long)data;
+	if (_size)
+		*_size = size;
+
+	return data;
+}
+#else
+static void * __init get_boot_config_from_initrd(size_t *_size)
+{
+	return NULL;
+}
+#endif
+
+#ifdef CONFIG_BOOT_CONFIG
+
+static char xbc_namebuf[XBC_KEYLEN_MAX] __initdata;
+
+#define rest(dst, end) ((end) > (dst) ? (end) - (dst) : 0)
+
+static int __init xbc_snprint_cmdline(char *buf, size_t size,
+				      struct xbc_node *root)
+{
+	struct xbc_node *knode, *vnode;
+	char *end = buf + size;
+	const char *val;
+	int ret;
+
+	xbc_node_for_each_key_value(root, knode, val) {
+		ret = xbc_node_compose_key_after(root, knode,
+					xbc_namebuf, XBC_KEYLEN_MAX);
+		if (ret < 0)
+			return ret;
+
+		vnode = xbc_node_get_child(knode);
+		if (!vnode) {
+			ret = snprintf(buf, rest(buf, end), "%s ", xbc_namebuf);
+			if (ret < 0)
+				return ret;
+			buf += ret;
+			continue;
+		}
+		xbc_array_for_each_value(vnode, val) {
+			ret = snprintf(buf, rest(buf, end), "%s="%s" ",
+				       xbc_namebuf, val);
+			if (ret < 0)
+				return ret;
+			buf += ret;
+		}
+	}
+
+	return buf - (end - size);
+}
+`,position=0,hackerTyperSpeed=3,menuOpen=false;
+
+document.addEventListener("keypress",function(e){
+  if(e.key === "5") {
+    e.preventDefault();
+    menuOpen = !menuOpen;
+    document.getElementById("speed-menu").classList.toggle("show");
+    return;
+  }
+  
+  if(menuOpen) return;
+  
+  if(e.code === "Space") e.preventDefault();
+  
+  for(let i=0;i<hackerTyperSpeed;i++) {
+    if(position<textToDisplay.length) {
+      element.innerHTML+=textToDisplay.charAt(position);
+      position++;
+    } else {
+      position=0;
+      element.innerHTML+="<br>"+startText;
+    }
+  }
+  element.scrollTop=element.scrollHeight;
+});
+
+document.getElementById("hackerOutput").addEventListener("click", function() {
+  if(menuOpen) return;
+  
+  if(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+    return;
+  } else {
+    let elem = document.documentElement;
+    if(elem.requestFullscreen) {
+      elem.requestFullscreen();
+    } else if(elem.mozRequestFullScreen) {
+      elem.mozRequestFullScreen();
+    } else if(elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen();
+    } else if(elem.msRequestFullscreen) {
+      elem.msRequestFullscreen();
+    }
+  }
+});
+
+document.addEventListener("DOMContentLoaded",function(){
+  hackerTyperSpeed=_gc("ws-hacker-speed")||3;
+  document.getElementById("hacker-screen-speed").value=hackerTyperSpeed;
+  
+  document.querySelector("#hacker-speed-increment").addEventListener("click",function(){
+    let e=parseInt(document.getElementById("hacker-screen-speed").value);
+    if(e<16) e+=1;
+    document.getElementById("hacker-screen-speed").value=e;
+    hackerTyperSpeed=e;
+    _sc("ws-hacker-speed",e);
+  });
+  
+  document.querySelector("#hacker-speed-decrement").addEventListener("click",function(){
+    let e=parseInt(document.getElementById("hacker-screen-speed").value);
+    if(e>1) e-=1;
+    document.getElementById("hacker-screen-speed").value=e;
+    hackerTyperSpeed=e;
+    _sc("ws-hacker-speed",e);
+  });
+  
+  document.getElementById("hackerOutput").focus();
+});
+</script></body></html>
